@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "defs.h"
 
 unsigned char lut[5][2] = {
@@ -15,6 +16,7 @@ void dataer_cb(struct SerCBParam param) {
 		printf("%d(%c)\t", param.data.data[i], param.data.data[i]);
 	}
 	puts("");
+	free(param.data.data);
 }
 
 ser_callback_fn cb_arr[5] = {
