@@ -18,16 +18,27 @@ struct SerData {
 	unsigned char *data;
 };
 
+struct SerText {
+	// element of Serializer.actlut (SER_LEN_TYPE [])
+	SER_LEN_TYPE act_causer;
+	unsigned data_len;
+	// WARNING: Needs freeing
+	char *data;
+};
+
 enum SerCBParamType {
+	SCB_NONE,
 	SCB_DATA,
+	SCB_TEXT,
 	SCB_UNKNOWN
 };
 
 struct SerCBParam {
 	enum SerCBParamType type;
-	union {
+	union arg {
 		struct SerData data;
-	};
+		struct SerText text;
+	} arg;
 };
 
 enum SerItemType {
@@ -39,6 +50,15 @@ enum SerItemType {
 	SIT_DATA_BEGIN,
 	// Callback data structure
 	SIT_DATA_END,
+
+	SIT_TXT_BEGIN,
+	// Callback data structure
+	SIT_TXT_END,
+
+	SIT_ARRAY_BEGIN,
+	SIT_ARRAY_NELEM,
+	SIT_ARRAY_END,
+
 	SIT_MAX
 };
 

@@ -2,6 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+
+#define BIT(OFF) (1 << OFF)
+
+// 0101010
+const static unsigned short pairLUT =     BIT(SIT_FILE_BEGIN) | BIT(SIT_FILE_END)
+					| BIT(SIT_DATA_BEGIN) | BIT(SIT_DATA_END)
+					| BIT(SIT_TXT_BEGIN)  | BIT(SIT_TXT_END);
+#define IS_X_PAIR(X) ((pairLUT & X) >> X)
 
 static void def_logger(enum SerLogType type, int status, const char *restrict message) {}
 
@@ -57,6 +66,15 @@ static SER_LEN_TYPE pairFirstSIT_safe(const SER_LEN_TYPE *restrict pair, enum Se
 	return SIT_NONE;
 }
 
+static inline unsigned long nextSIT_FileOffset(
+		FILE *restrict file,
+		const SER_LEN_TYPE *restrict actlut,
+		SER_LEN_TYPE begin_index /* index(in actlut) of begin SIT */) {
+	int c;
+	while(((c = getc(file)) != EOF) && c != pairGetFirst(actlut, begin_index+1)) {}
+	return ftell(file);
+}
+
 void serParse(Serializer *restrict ser, const char *restrict fname) {
 	if(!ser->isValid)
 		return;
@@ -85,19 +103,20 @@ void serParse(Serializer *restrict ser, const char *restrict fname) {
 			continue;
 		for(int i = 0; i < ser->callback_sz; i++) {
 			if(pairGetFirst(ser->actlut, i) == c) {
+				if(IS_X_PAIR(pairGetSecond(ser->actlut, i))) {
+					ser->log_cb(SFT_ERR, 0, "actlut structure invalid: SIT_???_BEGIN must be followed by SIT_???_END");
+					goto err;
+				}
 				switch (pairGetSecond(ser->actlut, i)) {
 					case SIT_DATA_BEGIN: {
-						if((i+1 < ser->callback_sz) && pairGetSecond(ser->actlut, i+1) != SIT_DATA_END)
-							ser->log_cb(SFT_ERR, 0, "actlut structure invalid: SIT_DATA_BEGIN must be followed by SIT_DATA_END");
 						const unsigned long begin_offs = ftell(file);
-						unsigned long end_offs = begin_offs;
-						while(((c = getc(file)) != EOF) && c != pairGetFirst(ser->actlut, i+1))
-							end_offs++;
+						const unsigned long end_offs = nextSIT_FileOffset(file, ser->actlut, i);
+
 						if(c == EOF) {
 							ser->log_cb(SFT_ERR, end_offs, "Unexpected end of file");
 							goto err;
 						}
-						unsigned char *buff = malloc((end_offs - begin_offs) + 1);
+						unsigned char *buff = malloc(end_offs - begin_offs);
 						if(!buff) {
 							ser->log_cb(SFT_ERR, -2, "Couldn't allocate for SerData buffer");
 							goto err;
@@ -111,11 +130,53 @@ void serParse(Serializer *restrict ser, const char *restrict fname) {
 								j++;
 							}
 						}
-						struct SerData data = { i, end_offs - begin_offs, buff };
-						ser->callback_array[i+1]((struct SerCBParam) { .type = SCB_DATA, .data=data });
+						struct SerData data = {
+							.act_causer = i,
+							.data_len   = end_offs - begin_offs,
+							.data 	    = buff
+						};
+						ser->callback_array[i+1]((struct SerCBParam) {
+								.type	= SCB_DATA,
+								.arg	= { data }
+						});
 					} break;
+
+					case SIT_TXT_BEGIN: {
+						const unsigned long begin_offs = ftell(file);
+						const unsigned long end_offs = nextSIT_FileOffset(file, ser->actlut, i);
+
+						if(c == EOF) {
+							ser->log_cb(SFT_ERR, end_offs, "Unexpected end of file");
+							goto err;
+						}
+						char *buff = malloc((end_offs - begin_offs)+1);
+						if(!buff) {
+							ser->log_cb(SFT_ERR, -2, "Couldn't allocate for SerData buffer");
+							goto err;
+						}
+						fseek(file, begin_offs, SEEK_SET);
+						{
+							unsigned j = 0;
+							while((c = getc(file)) != pairGetFirst(ser->actlut, i+1)) { // Can't be EOF
+								// ISO C forbids braced-groups within expressions :(
+								buff[j] = c;
+								j++;
+							}
+							buff[j] = '\0';
+						}
+						struct SerText text = {
+							.act_causer = i,
+							.data_len   = end_offs - begin_offs,
+							.data 	    = buff
+						};
+						ser->callback_array[i+1]((struct SerCBParam) {
+								.type	= SCB_TEXT,
+								.arg	= { .text = text }
+						});
+					} break;
+
 					default:
-						ser->callback_array[i]((struct SerCBParam){0});
+						//ser->callback_array[i]((struct SerCBParam){0});
 						break;
 				}
 			}
