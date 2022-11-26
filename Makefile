@@ -2,7 +2,7 @@ CC = cc
 
 PNAME = c
 
-SUBPROJ = xml
+SUBPROJ = binary
 
 SRC  = $(shell find src/$(SUBPROJ) -name "*.c")
 OBJ  = $(SRC:.c=.o)
