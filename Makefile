@@ -2,12 +2,14 @@ CC = cc
 
 PNAME = c
 
-SRC  = $(shell find src -name "*.c")
+SUBPROJ = xml
+
+SRC  = $(shell find src/$(SUBPROJ) -name "*.c")
 OBJ  = $(SRC:.c=.o)
 BIN = build
 
 EXEC = $(BIN)/$(PNAME)
-INCFLAGS  = -Isrc/
+INCFLAGS  = -Isrc/binary
 
 CCFLAGS += $(INCFLAGS)
 CCFLAGS += -O0

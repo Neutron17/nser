@@ -1,5 +1,10 @@
 # C serializer
 
-## Documentation
+# Documentation
+
+## I. BINARY
+TODO
+
+## II. XML
 TODO
 
